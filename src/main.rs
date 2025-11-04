@@ -1,5 +1,7 @@
 mod models;
+mod db;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     //TBD
 }

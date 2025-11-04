@@ -1,3 +1,3 @@
 pub mod poll;
 pub mod vote;
-mod state;
+pub mod state;
