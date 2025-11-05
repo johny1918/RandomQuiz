@@ -6,6 +6,7 @@ mod models;
 mod db;
 use crate::db::connect_db;
 use crate::models::state::AppState;
+use crate::models::health_check;
 
 #[tokio::main]
 async fn main() {
@@ -21,8 +22,4 @@ async fn routes(poll: AppState) -> Router {
     Router::new()
         .route("/", get(health_check))
         .with_state(poll)
-}
-
-async fn health_check() -> Json<serde_json::Value> {
-    Json(json!({ "status": "ok" }))
 }

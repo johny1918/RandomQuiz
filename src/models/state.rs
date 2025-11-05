@@ -2,7 +2,7 @@ use sqlx::PgPool;
 
 #[derive(Clone)]
 pub struct AppState {
-    db: PgPool,
+    pub db: PgPool,
 }
 
 impl AppState {
