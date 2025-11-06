@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Poll App</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+
+        .question {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        .options {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-direction: column;
+        }
+
+        .option-btn {
+            padding: 15px 25px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .option-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .result-item {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .result-bar {
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .result-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            transition: width 0.5s ease;
+        }
+
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🗳️ Random Poll</h1>
+    <div id="poll-container">
+        <div class="loading" id="loading">Loading random poll...</div>
+        <div id="question" class="question" style="display: none;"></div>
+        <div id="options" class="options" style="display: none;"></div>
+    </div>
+    <div id="results" class="results">
+        <h3>Results:</h3>
+        <div id="results-content"></div>
+    </div>
+    <div id="error" class="error" style="display: none;"></div>
+</div>
+
+<script>
+    let currentPoll = null;
+
+    // Fetch a random poll when page loads
+    async function fetchRandomPoll() {
+        showLoading();
+        hideError();
+        hideResults();
+
+        try {
+            const response = await fetch('/poll');
+            if (!response.ok) {
+                throw new Error(`Failed to fetch poll: ${response.status}`);
+            }
+
+            currentPoll = await response.json();
+            displayPoll(currentPoll);
+        } catch (error) {
+            showError(`Error: ${error.message}`);
+        }
+    }
+
+    // Display the poll question and options
+    function displayPoll(poll) {
+        hideLoading();
+        hideResults();
+
+        const questionElement = document.getElementById('question');
+        const optionsElement = document.getElementById('options');
+
+        questionElement.textContent = poll.question_text;
+        questionElement.style.display = 'block';
+
+        optionsElement.innerHTML = `
+        <button class="option-btn" onclick="submitVote('${poll.option_a.replace(/'/g, "\\'")}')">
+            ${poll.option_a}
+        </button>
+        <button class="option-btn" onclick="submitVote('${poll.option_b.replace(/'/g, "\\'")}')">
+            ${poll.option_b}
+        </button>
+    `;
+        optionsElement.style.display = 'block';
+    }
+
+    // Submit a vote
+    async function submitVote(chosenOption) {
+        if (!currentPoll) return;
+
+        try {
+            const response = await fetch('/vote', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    poll_id: currentPoll.id,
+                    chosen_option: chosenOption
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to submit vote: ${response.status}`);
+            }
+
+            // After successful vote, show results
+            await fetchResults(currentPoll.id);
+        } catch (error) {
+            showError(`Error submitting vote: ${error.message}`);
+        }
+    }
+
+    // Fetch and display results
+    async function fetchResults(pollId) {
+        try {
+            const response = await fetch(`/results/${pollId}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch results: ${response.status}`);
+            }
+
+            const results = await response.json();
+            displayResults(results);
+        } catch (error) {
+            showError(`Error fetching results: ${error.message}`);
+        }
+    }
+
+    // Display voting results - show both options even if zero votes
+    function displayResults(results) {
+        const resultsElement = document.getElementById('results');
+        const resultsContent = document.getElementById('results-content');
+
+        // Hide poll options
+        document.getElementById('options').style.display = 'none';
+
+        if (!currentPoll) return;
+
+        // Create a map of the results for easy lookup
+        const resultsMap = {};
+        results.results.forEach(result => {
+            resultsMap[result.option] = result;
+        });
+
+        // Show both options from the original poll, even if they have zero votes
+        const allOptions = [currentPoll.option_a, currentPoll.option_b];
+
+        resultsContent.innerHTML = allOptions.map(option => {
+            const result = resultsMap[option] || {
+                option: option,
+                count: 0,
+                percentage: 0
+            };
+
+            return `
+            <div class="result-item">
+                <div><strong>${result.option}</strong></div>
+                <div>${result.count} votes (${result.percentage}%)</div>
+                <div class="result-bar">
+                    <div class="result-fill" style="width: ${result.percentage}%"></div>
+                </div>
+            </div>
+        `;
+        }).join('') + `
+        <div style="text-align: center; margin-top: 20px;">
+            <button class="option-btn" onclick="fetchRandomPoll()"
+                    style="background: #667eea;">
+                ➡️ Next Question
+            </button>
+        </div>
+    `;
+
+        resultsElement.style.display = 'block';
+    }
+
+    // UI helper functions
+    function showLoading() {
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('question').style.display = 'none';
+        document.getElementById('options').style.display = 'none';
+        document.getElementById('results').style.display = 'none';
+    }
+
+    function hideLoading() {
+        document.getElementById('loading').style.display = 'none';
+    }
+
+    function hideResults() {
+        document.getElementById('results').style.display = 'none';
+    }
+
+    function showError(message) {
+        document.getElementById('error').textContent = message;
+        document.getElementById('error').style.display = 'block';
+        hideLoading();
+    }
+
+    function hideError() {
+        document.getElementById('error').style.display = 'none';
+    }
+
+    // Load a random poll when page loads
+    fetchRandomPoll();
+</script>
+</body>
+</html>

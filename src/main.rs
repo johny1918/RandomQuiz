@@ -1,12 +1,13 @@
-use crate::models::{get_random_poll, get_results};
 use crate::models::submit_vote;
+use crate::models::{add_poll, get_random_poll, get_results};
 use axum::Router;
 use axum::routing::{get, post};
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 
 mod db;
 mod models;
 use crate::db::connect_db;
-use crate::models::health_check;
 use crate::models::state::AppState;
 
 #[tokio::main]
@@ -24,10 +25,19 @@ async fn main() {
 }
 
 async fn routes(poll: AppState) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any) // Allows all origins (ok for development)
+        .allow_methods(Any) // Allows all HTTP methods
+        .allow_headers(Any); // Allows all headers
+    let static_dir = ServeDir::new("static");
+    let index_file = ServeFile::new("static/index.html");
     Router::new()
-        .route("/", get(health_check))
         .route("/poll", get(get_random_poll))
         .route("/vote", post(submit_vote))
         .route("/results/{poll_id}", get(get_results))
+        .route("/admin/poll", post(add_poll))
+        .nest_service("/static", static_dir)
+        .fallback_service(index_file)
         .with_state(poll)
+        .layer(cors)
 }

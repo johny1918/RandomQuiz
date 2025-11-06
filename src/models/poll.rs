@@ -1,7 +1,7 @@
+use crate::models::vote::VoteResult;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use crate::models::vote::VoteResult;
 
 #[derive(Serialize, Deserialize, FromRow)]
 pub struct Poll {
