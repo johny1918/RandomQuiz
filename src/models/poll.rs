@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use crate::models::vote::VoteResult;
 
 #[derive(Serialize, Deserialize, FromRow)]
 pub struct Poll {
@@ -9,4 +10,10 @@ pub struct Poll {
     pub option_a: String,
     pub option_b: String,
     pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize, Deserialize, FromRow)]
+pub struct PollResults {
+    pub poll_id: i32,
+    pub results: Vec<VoteResult>,
 }

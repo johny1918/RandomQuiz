@@ -1,4 +1,4 @@
-use crate::models::get_random_poll;
+use crate::models::{get_random_poll, get_results};
 use crate::models::submit_vote;
 use axum::Router;
 use axum::routing::{get, post};
@@ -28,5 +28,6 @@ async fn routes(poll: AppState) -> Router {
         .route("/", get(health_check))
         .route("/poll", get(get_random_poll))
         .route("/vote", post(submit_vote))
+        .route("/results/{poll_id}", get(get_results))
         .with_state(poll)
 }

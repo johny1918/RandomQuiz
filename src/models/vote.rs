@@ -15,3 +15,10 @@ pub struct VoteRequest {
     pub poll_id: i32,
     pub chosen_option: String,
 }
+
+#[derive(Serialize, Deserialize, FromRow)]
+pub struct VoteResult {
+    pub option: String,
+    pub count: i64,
+    pub percentage: f64,
+}

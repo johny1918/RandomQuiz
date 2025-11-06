@@ -2,10 +2,12 @@ use crate::models::poll::Poll;
 use crate::models::state::AppState;
 use crate::models::vote::VoteRequest;
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde_json::json;
+use crate::models::vote::VoteResult;
+use crate::models::poll::PollResults;
 
 pub mod poll;
 pub mod state;
@@ -41,4 +43,30 @@ pub async fn submit_vote(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json("Vote submitted successfully!"))
+}
+
+pub async fn get_results(
+    State(state): State<AppState>,
+    Path(poll_id): Path<i32>,
+) -> Result<Json<PollResults>, (StatusCode, String)> {
+    // Query for the results
+    let results = sqlx::query_as::<_, VoteResult>(
+        "SELECT
+            chosen_option as option,
+            COUNT(*) as count,
+            (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM votes WHERE poll_id = $1)) as percentage
+         FROM votes
+         WHERE poll_id = $1
+         GROUP BY chosen_option",
+    )   .bind(poll_id)
+        .fetch_all(&state.db)  // Use fetch_all for multiple rows
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Handle case where poll has no votes
+    if results.is_empty() {
+        return Ok(Json(PollResults { poll_id, results: vec![] }));
+    }
+
+    Ok(Json(PollResults { poll_id, results }))
 }
