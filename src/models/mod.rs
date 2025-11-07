@@ -87,6 +87,23 @@ pub async fn add_poll(
     Ok(Json("Poll created successfully"))
 }
 
+pub async fn delete_poll(State(state): State<AppState>, header: HeaderMap, Path(poll_id): Path<i32>) -> Result<Json<&'static str>, (StatusCode, String)> {
+    basic_auth(header).await?;
+    // First delete all votes for this poll
+    sqlx::query!("DELETE FROM votes WHERE poll_id = $1", poll_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Then delete the poll
+    sqlx::query!("DELETE FROM polls WHERE id = $1", poll_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json("Poll deleted successfully"))
+}
+
 async fn basic_auth(headers: HeaderMap) -> Result<(), (StatusCode, String)> {
     dotenv::dotenv().ok();
     let auth_header = headers

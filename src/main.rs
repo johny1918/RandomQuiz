@@ -36,6 +36,7 @@ async fn routes(poll: AppState) -> Router {
         .route("/vote", post(submit_vote))
         .route("/results/{poll_id}", get(get_results))
         .route("/admin/poll", post(add_poll))
+        .route("/admin/delete/{poll_id}", post(models::delete_poll))
         .nest_service("/static", static_dir)
         .fallback_service(index_file)
         .with_state(poll)
