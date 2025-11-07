@@ -5,7 +5,9 @@ use crate::models::vote::VoteResult;
 use crate::models::vote::{CreatePollRequest, VoteRequest};
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 
 pub mod poll;
 pub mod state;
@@ -68,8 +70,10 @@ pub async fn get_results(
 // Add this handler function
 pub async fn add_poll(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(poll): Json<CreatePollRequest>,
 ) -> Result<Json<&'static str>, (StatusCode, String)> {
+    basic_auth(headers).await?;
     sqlx::query!(
         "INSERT INTO polls (question_text, option_a, option_b) VALUES ($1, $2, $3)",
         poll.question_text,
@@ -81,4 +85,43 @@ pub async fn add_poll(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json("Poll created successfully"))
+}
+
+async fn basic_auth(headers: HeaderMap) -> Result<(), (StatusCode, String)> {
+    dotenv::dotenv().ok();
+    let auth_header = headers
+        .get("Authorization")
+        .ok_or((StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?
+        .to_str()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if !auth_header.starts_with("Basic ") {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid authentication scheme".to_string()));
+    }
+
+    let base64_credentials = &auth_header[6..];
+    let decoded = BASE64_STANDARD
+        .decode(base64_credentials)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid Base64 encoding".to_string()))?;
+
+    let credentials = String::from_utf8(decoded)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid UTF-8 encoding".to_string()))?;
+
+    let parts: Vec<&str> = credentials.splitn(2, ':').collect();
+    if parts.len() != 2 {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid credentials format".to_string()));
+    }
+
+    let username = parts[0];
+    let password = parts[1];
+
+    let expected_username =dotenv::var("ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string());
+    let expected_password =dotenv::var("ADMIN_PASSWORD").unwrap_or_else(|_| "".to_string());
+
+    if username == expected_username && password == expected_password {
+        Ok(())
+    }
+    else {
+        Err((StatusCode::UNAUTHORIZED, "Invalid credentials".to_string()))
+    }
 }
